@@ -1,0 +1,779 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TechSphere - Code Dilemma</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-900">
+  <!-- Navigation Bar -->
+  <nav class="bg-blue-600 text-white py-4 sticky top-0 z-10 shadow-lg">
+    <div class="container mx-auto px-4 flex justify-between items-center">
+      <h1 class="text-2xl font-bold">Code Dilemma</h1>
+      <div class="space-x-2">
+        <button onclick="showSection('home')" class="nav-btn px-4 py-2 rounded hover:bg-blue-800 transition">Home</button>
+        <button onclick="showSection('quiz')" class="nav-btn px-4 py-2 rounded hover:bg-blue-800 transition">Quiz</button>
+        <button onclick="showSection('leaderboard')" class="nav-btn px-4 py-2 rounded hover:bg-blue-800 transition">Leaderboard</button>
+        <button onclick="showSection('result')" class="nav-btn px-4 py-2 rounded hover:bg-blue-800 transition hidden" id="results-tab">Results</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Home Section -->
+  <section id="home" class="container mx-auto px-4 py-8">
+    <div class="bg-white rounded-lg shadow-lg p-6 max-w-2xl mx-auto">
+      <h2 class="text-3xl font-bold mb-4 text-blue-600">Welcome to TechSphere - Code Dilemma</h2>
+      <p class="text-lg mb-4">
+        Challenge your coding skills in Python, Java, and SQL! Take our 30-question quiz (10 per language) with a 10-minute limit per language.
+        Compete for a top spot on the leaderboard and conquer the Code Dilemma!
+      </p>
+      <p class="text-lg mb-4">
+        <strong>Date:</strong> April 25, 2025<br>
+        <strong>Location:</strong> College Auditorium<br>
+        <strong>Time:</strong> 10:00 AM - 2:00 PM
+      </p>
+      <button onclick="showSection('quiz')" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">Start Quiz</button>
+    </div>
+  </section>
+
+  <!-- Quiz Section -->
+  <section id="quiz" class="container mx-auto px-4 py-8 hidden">
+    <div class="bg-white rounded-lg shadow-lg p-6 max-w-3xl mx-auto">
+      <h2 class="text-3xl font-bold mb-4 text-blue-600">Code Dilemma Quiz</h2>
+      <!-- Authentication Form -->
+      <div id="auth-form">
+        <p id="welcome-message" class="text-lg mb-4 hidden"></p>
+        <div class="mb-4">
+          <label for="participant-name" class="block text-lg font-medium">Your Name:</label>
+          <input type="text" id="participant-name" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" placeholder="e.g., John Doe" required>
+        </div>
+        <div class="mb-4">
+          <label for="participant-id" class="block text-lg font-medium">Participant ID:</label>
+          <input type="text" id="participant-id" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" placeholder="e.g., PART001" required>
+          <p id="id-error" class="text-red-600 mt-2 hidden">This Participant ID is already in use by another user. Please choose a different ID.</p>
+        </div>
+        <div class="flex space-x-2">
+          <button onclick="validateParticipant()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">Start Quiz</button>
+          <button onclick="logout()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition hidden" id="logout-btn">Log Out</button>
+        </div>
+      </div>
+      <!-- Quiz Form -->
+      <div id="quiz-form" class="hidden">
+        <div class="flex space-x-4 mb-4">
+          <button onclick="selectLanguage('python')" class="lang-tab flex-1 py-2 rounded text-center transition bg-gray-100 hover:bg-blue-100">Python</button>
+          <button onclick="selectLanguage('java')" class="lang-tab flex-1 py-2 rounded text-center transition bg-gray-100 hover:bg-blue-100">Java</button>
+          <button onclick="selectLanguage('sql')" class="lang-tab flex-1 py-2 rounded text-center transition bg-gray-100 hover:bg-blue-100">SQL</button>
+        </div>
+        <div class="mb-4">
+          <div class="w-full bg-gray-200 rounded-full h-2.5">
+            <div id="timer-bar" class="h-2.5 rounded-full transition-all" style="width: 100%"></div>
+          </div>
+          <p class="text-sm text-gray-600">Time Remaining: <span id="timer">10:00</span></p>
+        </div>
+        <div class="mb-4">
+          <div class="w-full bg-gray-200 rounded-full h-2.5">
+            <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 10%"></div>
+          </div>
+          <p class="text-sm text-gray-600">Question <span id="current-question">1</span> of 10</p>
+        </div>
+        <div id="questions" class="space-y-6"></div>
+        <div class="flex justify-between">
+          <button onclick="prevQuestion()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition hidden" id="prev-btn">Previous</button>
+          <button onclick="nextQuestion()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition" id="next-btn">Next</button>
+          <button onclick="submitQuiz()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition hidden" id="submit-btn">Submit</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Results Section -->
+  <section id="result" class="container mx-auto px-4 py-8 hidden">
+    <div class="bg-white rounded-lg shadow-lg p-6 max-w-3xl mx-auto">
+      <h2 class="text-3xl font-bold mb-4 text-blue-600">Quiz Results</h2>
+      <div class="mb-4">
+        <label for="result-id" class="block text-lg font-medium">Enter Participant ID to View Results:</label>
+        <input type="text" id="result-id" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" placeholder="e.g., PART001" required>
+        <button onclick="showResult()" class="mt-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">View Results</button>
+      </div>
+      <div id="score-display" class="hidden">
+        <h3 class="text-2xl font-bold text-green-600">Your Scores:</h3>
+        <p id="score"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Leaderboard Section -->
+  <section id="leaderboard" class="container mx-auto px-4 py-8 hidden">
+    <div class="bg-white rounded-lg shadow-lg p-6 max-w-4xl mx-auto">
+      <h2 class="text-3xl font-bold mb-4 text-blue-600">Leaderboard</h2>
+      <button onclick="showAdminAuthModal()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition mb-4">Clear Leaderboard</button>
+      <div class="overflow-y-auto max-h-[60vh]">
+        <table class="w-full">
+          <thead>
+            <tr class="bg-blue-600 text-white sticky top-0">
+              <th class="p-4 text-left">Rank</th>
+              <th class="p-4 text-left">Name</th>
+              <th class="p-4 text-left">Participant ID</th>
+              <th class="p-4 text-left">Python</th>
+              <th class="p-4 text-left">Java</th>
+              <th class="p-4 text-left">SQL</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-table" class="divide-y divide-gray-200"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Admin Authentication Modal -->
+  <div id="admin-auth-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full">
+      <h3 class="text-xl font-bold mb-4 text-blue-600">Admin Authentication</h3>
+      <p class="mb-4">Enter Admin ID to reset the leaderboard.</p>
+      <div class="mb-4">
+        <label for="admin-id" class="block text-lg font-medium">Admin ID:</label>
+        <input type="text" id="admin-id" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" placeholder="Enter Admin ID" required>
+      </div>
+      <div class="flex justify-end space-x-2">
+        <button onclick="hideAdminAuthModal()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition">Cancel</button>
+        <button onclick="validateAdmin()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">Authenticate</button>
+      </div>
+      <p id="admin-error" class="text-red-600 mt-2 hidden">Invalid Admin ID. Please try again.</p>
+    </div>
+  </div>
+
+  <!-- Reset Leaderboard Modal -->
+  <div id="reset-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full">
+      <h3 class="text-xl font-bold mb-4 text-red-600">Confirm Leaderboard Reset</h3>
+      <p class="mb-4">Are you sure you want to clear the leaderboard? This will delete all scores, participant ID assignments, and user sessions permanently.</p>
+      <div class="flex justify-end space-x-2">
+        <button onclick="hideResetModal()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition">Cancel</button>
+        <button onclick="resetLeaderboard()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition">Confirm</button>
+      </div>
+      <p id="reset-success" class="text-green-600 mt-4 hidden">Leaderboard cleared successfully!</p>
+    </div>
+  </div>
+
+  <!-- Focus Warning Modal -->
+  <div id="focus-warning-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full">
+      <h3 class="text-xl font-bold mb-4 text-red-600">Warning: Quiz Paused</h3>
+      <p class="mb-4">You have left the quiz screen or navigated away. Return to the quiz to continue, or your answers will not be submitted.</p>
+      <div class="flex justify-end">
+        <button onclick="resumeQuiz()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">Return to Quiz</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Questions
+    const questions = {
+      python: [
+        { id: 1, question: "What is the output of print(2 ** 3)?", options: ["6", "8", "9", "12"], correct: 2 },
+        { id: 2, question: "Which keyword defines a function in Python?", options: ["func", "define", "def", "function"], correct: 3 },
+        { id: 3, question: "What does list.append() do?", options: ["Removes an item", "Adds an item to the end", "Sorts the list", "Reverses the list"], correct: 2 },
+        { id: 4, question: "Which data type is mutable?", options: ["Tuple", "String", "List", "Integer"], correct: 3 },
+        { id: 5, question: "What is the result of 'hello'.upper()?", options: ["HELLO", "hello", "Hello", "hELLO"], correct: 1 },
+        { id: 6, question: "What does a for loop do?", options: ["Executes once", "Iterates over a sequence", "Breaks a loop", "Skips an iteration"], correct: 2 },
+        { id: 7, question: "Which operator checks equality?", options: ["=", "==", "===", "!="], correct: 2 },
+        { id: 8, question: "What is None in Python?", options: ["Zero", "Empty string", "Null value", "False"], correct: 3 },
+        { id: 9, question: "How do you start a comment in Python?", options: ["//", "#", "/*", "--"], correct: 2 },
+        { id: 10, question: "What does len('python') return?", options: ["5", "6", "7", "4"], correct: 2 }
+      ],
+      java: [
+        { id: 11, question: "What is the correct syntax to print 'Hello' in Java?", options: ["print('Hello')", "System.out.println('Hello')", "echo 'Hello'", "printf('Hello')"], correct: 2 },
+        { id: 12, question: "Which keyword declares a class in Java?", options: ["struct", "class", "type", "object"], correct: 2 },
+        { id: 13, question: "What is the default value of an int variable?", options: ["0", "null", "undefined", "-1"], correct: 1 },
+        { id: 14, question: "Which loop executes at least once?", options: ["for", "while", "do-while", "foreach"], correct: 3 },
+        { id: 15, question: "What does the 'public' access modifier mean?", options: ["Private access", "Package access", "Accessible everywhere", "Protected access"], correct: 3 },
+        { id: 16, question: "Which collection stores key-value pairs?", options: ["ArrayList", "HashMap", "LinkedList", "TreeSet"], correct: 2 },
+        { id: 17, question: "What is the parent class of all classes in Java?", options: ["Object", "Class", "Main", "System"], correct: 1 },
+        { id: 18, question: "Which keyword is used for inheritance?", options: ["extends", "implements", "super", "this"], correct: 1 },
+        { id: 19, question: "What does 'static' mean in Java?", options: ["Instance-specific", "Class-level", "Local scope", "Dynamic"], correct: 2 },
+        { id: 20, question: "What is the output of '2' + 3 in Java?", options: ["5", "23", "6", "Error"], correct: 2 }
+      ],
+      sql: [
+        { id: 21, question: "Which keyword retrieves data from a database?", options: ["SELECT", "INSERT", "UPDATE", "DELETE"], correct: 1 },
+        { id: 22, question: "What does JOIN do in SQL?", options: ["Combines rows from tables", "Deletes rows", "Updates rows", "Inserts rows"], correct: 1 },
+        { id: 23, question: "Which clause filters records?", options: ["WHERE", "ORDER BY", "GROUP BY", "HAVING"], correct: 1 },
+        { id: 24, question: "What does COUNT(*) return?", options: ["Sum of values", "Number of rows", "Average value", "Maximum value"], correct: 2 },
+        { id: 25, question: "Which keyword sorts results?", options: ["SORT", "ORDER BY", "ARRANGE", "GROUP"], correct: 2 },
+        { id: 26, question: "What is a primary key?", options: ["Duplicate key", "Unique identifier", "Foreign key", "Index"], correct: 2 },
+        { id: 27, question: "Which clause groups rows?", options: ["WHERE", "GROUP BY", "HAVING", "ORDER BY"], correct: 2 },
+        { id: 28, question: "What does DELETE do?", options: ["Adds rows", "Removes rows", "Updates rows", "Selects rows"], correct: 2 },
+        { id: 29, question: "Which join returns all rows from both tables?", options: ["INNER JOIN", "LEFT JOIN", "RIGHT JOIN", "FULL JOIN"], correct: 4 },
+        { id: 30, question: "What does DISTINCT do?", options: ["Sorts rows", "Removes duplicates", "Groups rows", "Filters rows"], correct: 2 }
+      ]
+    };
+
+    // Valid participant and admin IDs
+    const validParticipantIds = Array.from({ length: 50 }, (_, i) => `PART${String(i + 1).padStart(3, '0')}`);
+    const validAdminId = 'ADMIN001';
+    let currentQuestionIndex = 0;
+    let currentLanguage = 'python';
+    let answers = [];
+    let timerInterval = null;
+    let timerState = { python: 600, java: 600, sql: 600 };
+    let participantId = '';
+    let participantName = '';
+    let completedQuizzes = { python: false, java: false, sql: false };
+    let shuffledQuestions = { python: [], java: [], sql: [] };
+    let isAdminAuthenticated = false;
+    let isQuizTainted = false;
+    let isQuizActive = false;
+    let usedParticipantIds = {};
+    let currentUser = null;
+
+    // Simple hash function for participant ID
+    function hashString(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = (hash * 31 + str.charCodeAt(i)) & 0x7FFFFFFF;
+      }
+      return hash;
+    }
+
+    // Seeded random number generator
+    function seededRandom(seed) {
+      let x = Math.sin(seed++) * 10000;
+      return x - Math.floor(x);
+    }
+
+    // Shuffle array with seed
+    function shuffleArray(array, seed) {
+      const newArray = [...array];
+      for (let i = newArray.length - 1; i > 0; i--) {
+        const j = Math.floor(seededRandom(seed + i) * (i + 1));
+        [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+      }
+      return newArray;
+    }
+
+    // Scramble questions and options
+    function scrambleQuestions(participantId) {
+      const seed = hashString(participantId);
+      for (const lang in questions) {
+        shuffledQuestions[lang] = shuffleArray(questions[lang], seed);
+        shuffledQuestions[lang] = shuffledQuestions[lang].map(q => {
+          const originalOptions = [...q.options];
+          const shuffledOptions = shuffleArray(originalOptions, seed + q.id);
+          const correctIndex = shuffledOptions.indexOf(originalOptions[q.correct - 1]) + 1;
+          console.log(`Shuffling question ${q.id} in ${lang} for ${participantId}: Correct index ${correctIndex}`);
+          return { ...q, options: shuffledOptions, correct: correctIndex };
+        });
+      }
+      console.log(`Shuffled questions for ${participantId}:`, shuffledQuestions);
+    }
+
+    // Show/hide sections
+    function showSection(sectionId) {
+      console.log(`Attempting to navigate to section: ${sectionId}`);
+      if (isQuizActive && sectionId !== 'quiz') {
+        isQuizTainted = true;
+        pauseQuiz();
+      }
+      document.querySelectorAll('section').forEach(section => section.classList.add('hidden'));
+      document.getElementById(sectionId).classList.remove('hidden');
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('bg-blue-800'));
+      document.querySelector(`button[onclick="showSection('${sectionId}')"]`)?.classList.add('bg-blue-800');
+      if (sectionId === 'quiz') resetQuiz();
+      if (sectionId === 'leaderboard') loadLeaderboard();
+    }
+
+    // Reset quiz section
+    function resetQuiz() {
+      document.getElementById('auth-form').classList.remove('hidden');
+      document.getElementById('quiz-form').classList.add('hidden');
+      document.getElementById('participant-id').value = '';
+      document.getElementById('participant-name').value = '';
+      document.getElementById('id-error').classList.add('hidden');
+      document.getElementById('welcome-message').classList.add('hidden');
+      document.getElementById('logout-btn').classList.add('hidden');
+      currentQuestionIndex = 0;
+      currentLanguage = 'python';
+      answers = new Array(10).fill(null);
+      completedQuizzes = { python: false, java: false, sql: false };
+      shuffledQuestions = { python: [], java: [], sql: [] };
+      timerState = { python: 600, java: 600, sql: 600 };
+      isQuizTainted = false;
+      isQuizActive = false;
+      clearInterval(timerInterval);
+      timerInterval = null;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.getElementById('results-tab').classList.add('hidden');
+      usedParticipantIds = JSON.parse(localStorage.getItem('usedParticipantIds') || '{}');
+      currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+      if (currentUser) {
+        if (!validParticipantIds.includes(currentUser.participantId) || (usedParticipantIds[currentUser.participantId] && usedParticipantIds[currentUser.participantId] !== currentUser.participantName)) {
+          console.log(`Invalid current user: ${currentUser.participantId}, clearing session`);
+          currentUser = null;
+          localStorage.removeItem('currentUser');
+        } else {
+          console.log(`Loaded current user: ${currentUser.participantId}, ${currentUser.participantName}`);
+          document.getElementById('participant-name').value = currentUser.participantName;
+          document.getElementById('participant-id').value = currentUser.participantId;
+          document.getElementById('welcome-message').textContent = `Welcome back, ${currentUser.participantName}!`;
+          document.getElementById('welcome-message').classList.remove('hidden');
+          document.getElementById('logout-btn').classList.remove('hidden');
+        }
+      }
+      console.log('Quiz reset completed, loaded used IDs:', usedParticipantIds, 'current user:', currentUser);
+    }
+
+    // Validate participant
+    function validateParticipant() {
+      participantName = document.getElementById('participant-name').value.trim();
+      participantId = document.getElementById('participant-id').value.trim().toUpperCase();
+      document.getElementById('id-error').classList.add('hidden');
+      if (!participantName) {
+        alert('Please enter your name.');
+        return;
+      }
+      if (!validParticipantIds.includes(participantId)) {
+        alert('Invalid Participant ID. Please try again.');
+        return;
+      }
+      if (usedParticipantIds[participantId] && usedParticipantIds[participantId] !== participantName) {
+        document.getElementById('id-error').classList.remove('hidden');
+        console.log(`ID ${participantId} already used by ${usedParticipantIds[participantId]}, blocked for ${participantName}`);
+        return;
+      }
+      if (currentUser && currentUser.participantId === participantId && currentUser.participantName !== participantName) {
+        document.getElementById('id-error').classList.remove('hidden');
+        console.log(`Current user ID ${participantId} does not match name ${participantName}`);
+        return;
+      }
+      console.log(`Initializing quiz for ${participantId} with name ${participantName}`);
+      usedParticipantIds[participantId] = participantName;
+      currentUser = { participantId, participantName };
+      localStorage.setItem('usedParticipantIds', JSON.stringify(usedParticipantIds));
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      scrambleQuestions(participantId);
+      document.getElementById('auth-form').classList.add('hidden');
+      document.getElementById('quiz-form').classList.remove('hidden');
+      document.getElementById('quiz-form').dataset.participantId = participantId;
+      isQuizActive = true;
+      setupFocusDetection();
+      selectLanguage('python');
+      console.log('Participant validated, quiz form shown');
+    }
+
+    // Log out
+    function logout() {
+      currentUser = null;
+      localStorage.removeItem('currentUser');
+      console.log('User logged out, current user cleared');
+      resetQuiz();
+    }
+
+    // Setup focus detection
+    function setupFocusDetection() {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      console.log('Focus detection set up');
+    }
+
+    // Handle visibility change
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'hidden' && isQuizActive) {
+        isQuizTainted = true;
+        console.log('Focus lost, quiz tainted');
+        pauseQuiz();
+      }
+    }
+
+    // Pause quiz
+    function pauseQuiz() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      document.getElementById('focus-warning-modal').classList.remove('hidden');
+    }
+
+    // Resume quiz
+    function resumeQuiz() {
+      document.getElementById('focus-warning-modal').classList.add('hidden');
+      if (isQuizActive && !timerInterval) {
+        startTimer();
+      }
+    }
+
+    // Show admin authentication modal
+    function showAdminAuthModal() {
+      document.getElementById('admin-auth-modal').classList.remove('hidden');
+      document.getElementById('admin-id').value = '';
+      document.getElementById('admin-error').classList.add('hidden');
+      isAdminAuthenticated = false;
+    }
+
+    // Hide admin authentication modal
+    function hideAdminAuthModal() {
+      document.getElementById('admin-auth-modal').classList.add('hidden');
+    }
+
+    // Validate admin
+    function validateAdmin() {
+      const adminId = document.getElementById('admin-id').value.trim().toUpperCase();
+      if (adminId === validAdminId) {
+        isAdminAuthenticated = true;
+        hideAdminAuthModal();
+        showResetModal();
+      } else {
+        document.getElementById('admin-error').classList.remove('hidden');
+      }
+    }
+
+    // Select language
+    function selectLanguage(lang) {
+      if (!isQuizActive) {
+        console.log(`Cannot select language ${lang}: Quiz not active`);
+        return;
+      }
+      if (completedQuizzes[lang]) {
+        alert(`You have already completed the ${lang.toUpperCase()} quiz.`);
+        return;
+      }
+      currentLanguage = lang;
+      currentQuestionIndex = 0;
+      answers = new Array(10).fill(null);
+      clearInterval(timerInterval);
+      timerInterval = null;
+      document.querySelectorAll('.lang-tab').forEach(tab => tab.classList.remove('bg-blue-200'));
+      document.querySelector(`button[onclick="selectLanguage('${lang}')"]`).classList.add('bg-blue-200');
+      loadQuiz();
+      if (isQuizActive) startTimer();
+      console.log(`Selected language: ${lang}, question index: ${currentQuestionIndex}`);
+    }
+
+    // Start timer
+    function startTimer() {
+      clearInterval(timerInterval);
+      let timeLeft = timerState[currentLanguage];
+      document.getElementById('timer').textContent = formatTime(timeLeft);
+      document.getElementById('timer-bar').style.width = `${(timeLeft / 600) * 100}%`;
+      document.getElementById('timer-bar').classList.remove('bg-yellow-500', 'bg-red-600');
+      document.getElementById('timer-bar').classList.add('bg-green-600');
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        timerState[currentLanguage] = timeLeft;
+        document.getElementById('timer').textContent = formatTime(timeLeft);
+        document.getElementById('timer-bar').style.width = `${(timeLeft / 600) * 100}%`;
+        if (timeLeft <= 120) {
+          document.getElementById('timer-bar').classList.add('bg-yellow-500');
+          document.getElementById('timer-bar').classList.remove('bg-green-600');
+        }
+        if (timeLeft <= 30) {
+          document.getElementById('timer-bar').classList.add('bg-red-600');
+          document.getElementById('timer-bar').classList.remove('bg-yellow-500');
+        }
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          submitQuiz(true);
+        }
+      }, 1000);
+    }
+
+    // Format time
+    function formatTime(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    // Load quiz questions
+    function loadQuiz() {
+      if (!isQuizActive || !shuffledQuestions[currentLanguage].length) {
+        console.error(`Cannot load quiz: Quiz not active or no questions for ${currentLanguage}`);
+        document.getElementById('quiz-form').classList.add('hidden');
+        document.getElementById('auth-form').classList.remove('hidden');
+        alert('Please authenticate to start the quiz.');
+        return;
+      }
+      const questionsDiv = document.getElementById('questions');
+      questionsDiv.innerHTML = '';
+      const question = shuffledQuestions[currentLanguage][currentQuestionIndex];
+      if (!question) {
+        console.error(`No question found at index ${currentQuestionIndex} for ${currentLanguage}`);
+        document.getElementById('quiz-form').classList.add('hidden');
+        document.getElementById('auth-form').classList.remove('hidden');
+        alert('Error loading quiz. Please try again.');
+        return;
+      }
+      console.log(`Loading question ${question.id} for ${currentLanguage}, index ${currentQuestionIndex}`);
+      questionsDiv.innerHTML = `
+        <div class="bg-gray-100 p-4 rounded-lg shadow">
+          <p class="text-lg font-medium">${currentQuestionIndex + 1}. ${question.question}</p>
+          <div class="space-y-2 mt-2">
+            ${question.options.map((option, i) => `
+              <label class="flex items-center block min-h-[24px]">
+                <input type="radio" name="q${question.id}" id="q${question.id}-${i}" value="${i + 1}" ${answers[currentQuestionIndex] === i + 1 ? 'checked' : ''} class="mr-2" onchange="updateAnswer(${currentQuestionIndex}, ${i + 1})">
+                <span class="text-gray-800">${option}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      document.getElementById('current-question').textContent = currentQuestionIndex + 1;
+      document.getElementById('progress-bar').style.width = `${((currentQuestionIndex + 1) / 10) * 100}%`;
+      document.getElementById('prev-btn').classList.toggle('hidden', currentQuestionIndex === 0);
+      document.getElementById('next-btn').classList.toggle('hidden', currentQuestionIndex === 9);
+      document.getElementById('submit-btn').classList.toggle('hidden', currentQuestionIndex !== 9);
+    }
+
+    // Update answer on radio button change
+    function updateAnswer(questionIndex, value) {
+      console.log(`Answer selected for question ${questionIndex + 1}: ${value}`);
+      answers[questionIndex] = value;
+    }
+
+    // Navigate questions
+    function prevQuestion() {
+      if (!isQuizActive || !shuffledQuestions[currentLanguage].length) {
+        console.error('Cannot navigate: Quiz not active or no questions');
+        document.getElementById('quiz-form').classList.add('hidden');
+        document.getElementById('auth-form').classList.remove('hidden');
+        return;
+      }
+      const selected = document.querySelector(`input[name="q${shuffledQuestions[currentLanguage][currentQuestionIndex].id}"]:checked`);
+      answers[currentQuestionIndex] = selected ? parseInt(selected.value) : null;
+      console.log(`Previous question, answers: ${answers}`);
+      if (currentQuestionIndex > 0) {
+        currentQuestionIndex--;
+        loadQuiz();
+      }
+    }
+
+    function nextQuestion() {
+      if (!isQuizActive || !shuffledQuestions[currentLanguage].length) {
+        console.error('Cannot navigate: Quiz not active or no questions');
+        document.getElementById('quiz-form').classList.add('hidden');
+        document.getElementById('auth-form').classList.remove('hidden');
+        return;
+      }
+      const selected = document.querySelector(`input[name="q${shuffledQuestions[currentLanguage][currentQuestionIndex].id}"]:checked`);
+      answers[currentQuestionIndex] = selected ? parseInt(selected.value) : null;
+      console.log(`Next question, answers: ${answers}`);
+      if (currentQuestionIndex < 9) {
+        currentQuestionIndex++;
+        loadQuiz();
+      }
+    }
+
+    // Submit quiz
+    function submitQuiz(isTimeout = false) {
+      if (!isQuizActive || !shuffledQuestions[currentLanguage].length) {
+        console.error('Cannot submit: Quiz not active or no questions');
+        document.getElementById('quiz-form').classList.add('hidden');
+        document.getElementById('auth-form').classList.remove('hidden');
+        return;
+      }
+      if (isQuizTainted && !isTimeout) {
+        alert('Quiz submission blocked due to leaving the quiz screen or navigating away. Please restart the quiz.');
+        resetQuiz();
+        showSection('quiz');
+        return;
+      }
+      if (!isTimeout) {
+        const selected = document.querySelector(`input[name="q${shuffledQuestions[currentLanguage][currentQuestionIndex].id}"]:checked`);
+        answers[currentQuestionIndex] = selected ? parseInt(selected.value) : null;
+      }
+      console.log(`Submitting quiz for ${currentLanguage}, answers: ${answers}`);
+      let score = 0;
+      shuffledQuestions[currentLanguage].forEach((q, i) => {
+        if (answers[i] === q.correct) score++;
+      });
+      saveScore(participantId, participantName, score, currentLanguage);
+      completedQuizzes[currentLanguage] = true;
+      clearInterval(timerInterval);
+      timerInterval = null;
+      isQuizActive = false;
+      isQuizTainted = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      timerState[currentLanguage] = 600;
+      redirectToNextLanguage();
+    }
+
+    // Redirect to next language
+    function redirectToNextLanguage() {
+      const languages = ['python', 'java', 'sql'];
+      const currentIndex = languages.indexOf(currentLanguage);
+      let nextLang = null;
+      for (let i = 1; i <= languages.length; i++) {
+        const nextIndex = (currentIndex + i) % languages.length;
+        if (!completedQuizzes[languages[nextIndex]]) {
+          nextLang = languages[nextIndex];
+          break;
+        }
+      }
+      checkAllQuizzesCompleted();
+      if (nextLang) {
+        selectLanguage(nextLang);
+      } else {
+        showSection('result');
+      }
+    }
+
+    // Check if all quizzes are completed
+    function checkAllQuizzesCompleted() {
+      if (completedQuizzes.python && completedQuizzes.java && completedQuizzes.sql) {
+        document.getElementById('results-tab').classList.remove('hidden');
+        currentUser = null;
+        localStorage.removeItem('currentUser');
+        console.log('All quizzes completed, current user cleared');
+      }
+    }
+
+    // Save score to localStorage
+    function saveScore(participantId, participantName, score, language) {
+      if (usedParticipantIds[participantId] !== participantName) {
+        console.log(`Score save blocked for ${participantId}: Name mismatch`);
+        return;
+      }
+      let scores = JSON.parse(localStorage.getItem('scores') || '[]');
+      scores = scores.filter(s => !(s.participantId === participantId && s.language === language));
+      scores.push({ participantId, participantName, score, language });
+      localStorage.setItem('scores', JSON.stringify(scores));
+      console.log(`Saved score for ${participantId}, ${language}: ${score}`);
+    }
+
+    // Show result
+    function showResult() {
+      const resultId = document.getElementById('result-id').value.trim().toUpperCase();
+      if (!validParticipantIds.includes(resultId)) {
+        alert('Invalid Participant ID. Please try again.');
+        return;
+      }
+      const scores = JSON.parse(localStorage.getItem('scores') || '[]');
+      const userScores = scores.filter(s => s.participantId === resultId);
+      let resultText = '';
+      ['python', 'java', 'sql'].forEach(lang => {
+        const score = userScores.find(s => s.language === lang);
+        resultText += `${lang.toUpperCase()}: ${score ? score.score : 'Not attempted'} / 10<br>`;
+      });
+      document.getElementById('score').innerHTML = resultText;
+      document.getElementById('score-display').classList.remove('hidden');
+    }
+
+    // Load leaderboard
+    function loadLeaderboard() {
+      const scores = JSON.parse(localStorage.getItem('scores') || '[]');
+      const participants = {};
+      scores.forEach(score => {
+        if (!participants[score.participantId]) {
+          participants[score.participantId] = {
+            participantName: score.participantName,
+            python: '-',
+            java: '-',
+            sql: '-',
+            total: 0
+          };
+        }
+        participants[score.participantId][score.language] = score.score;
+        participants[score.participantId].total += score.score;
+      });
+      const sortedParticipants = Object.entries(participants)
+        .map(([participantId, data]) => ({ participantId, ...data }))
+        .sort((a, b) => b.total - a.total);
+      const tableBody = document.getElementById('leaderboard-table');
+      tableBody.innerHTML = '';
+      sortedParticipants.forEach((participant, index) => {
+        tableBody.innerHTML += `
+          <tr class="${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'} hover:bg-gray-100 transition">
+            <td class="p-4">${index + 1}</td>
+            <td class="p-4">${participant.participantName}</td>
+            <td class="p-4">${participant.participantId}</td>
+            <td class="p-4">${participant.python}</td>
+            <td class="p-4">${participant.java}</td>
+            <td class="p-4">${participant.sql}</td>
+          </tr>
+        `;
+      });
+      if (sortedParticipants.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center">No scores yet.</td></tr>';
+      }
+      console.log(`Leaderboard loaded with ${sortedParticipants.length} participants`);
+    }
+
+    // Show reset modal
+    function showResetModal() {
+      if (!isAdminAuthenticated) return;
+      document.getElementById('reset-modal').classList.remove('hidden');
+      document.getElementById('reset-success').classList.add('hidden');
+    }
+
+    // Hide reset modal
+    function hideResetModal() {
+      document.getElementById('reset-modal').classList.add('hidden');
+      isAdminAuthenticated = false;
+    }
+
+    // Reset leaderboard
+    function resetLeaderboard() {
+      if (!isAdminAuthenticated) return;
+      try {
+        localStorage.removeItem('scores');
+        localStorage.removeItem('usedParticipantIds');
+        localStorage.removeItem('currentUser');
+        usedParticipantIds = {};
+        currentUser = null;
+        setTimeout(() => {
+          loadLeaderboard();
+          document.getElementById('reset-success').classList.remove('hidden');
+          setTimeout(hideResetModal, 1000);
+        }, 100);
+      } catch (e) {
+        alert('Error clearing leaderboard. Please try again.');
+      }
+    }
+
+    // Initialize
+    localStorage.removeItem('scores');
+    localStorage.removeItem('usedParticipantIds');
+    localStorage.removeItem('currentUser');
+    resetQuiz();
+    showSection('home');
+  </script>
+</body>
+</html>
